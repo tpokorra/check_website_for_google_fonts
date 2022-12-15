@@ -8,6 +8,24 @@ from urllib.parse import urlparse
 
 REGEX_FONT_DOMAINS = "(fonts.(google|gstatic))|fast.fonts"
 
+def find_links_in_css(css_url):
+    try:
+        r = requests.get(css_url, allow_redirects=True)
+        if (r.status_code == 200):
+            try:
+                findings = []
+
+                matches = re.findall(re.compile(r"(src: url\((https:|http:|)\/\/(" + REGEX_FONT_DOMAINS + ")[^\)]*\))"), str(r.content))
+                for m in matches:
+                    findings.append(m[0])
+
+                return findings
+            except Exception as e:
+                print (e)
+    except Exception as e:
+        print (e)
+
+
 def scan_website(domain):
     try: 
                 #check http because follow we can follow the redirect if https
@@ -36,6 +54,9 @@ def scan_website(domain):
                             # complain about any links to external css
                             if not csslink.startswith(mydomain_with_scheme + '/'):
                                 findings.append(str(x))
+                            else:
+                                # check local css files for links to external fonts
+                                findings.extend(find_links_in_css(csslink))
 
                         if (len(findings) > 0):
                             result = {
