@@ -81,6 +81,8 @@ if __name__ == "__main__":
             reader = csv.reader(csvFile, delimiter=',', quotechar='|')
             results = []
             for row in reader:
+                if not row or row[0].startswith('#'):
+                    continue
                 result = scan_website(row[0])
                 if result:
                     results.append(result)
