@@ -26,7 +26,30 @@ def find_links_in_css(css_url):
         print (e)
 
 
-REGEX_FONT_DOMAINS = "(fonts.(google|gstatic))|fast.fonts"
+def add_external_links(scheme, domain, links, findings):
+    for x in links:
+        # css
+        if x.get('href'):
+            link = x['href']
+        # javascript
+        elif x.get('src'):
+            link = x['src']
+        else:
+            continue
+
+        # get the full url
+        if link.startswith('//'):
+            link = scheme + ':' + link
+        elif link.startswith('/'):
+            link = scheme + '://' + domain + link
+
+        # complain about any links to external files
+        if link.startswith('http') and not link.startswith(scheme + '://' + domain + '/'):
+            if not str(x) in findings:
+                findings.append(str(x))
+
+    return findings
+
 
 def scan_website(domain):
     try: 
@@ -35,7 +58,8 @@ def scan_website(domain):
                 if (r.status_code == 200):
                     try:
                         parsed_uri = urlparse(r.url)
-                        mydomain_with_scheme = f"{parsed_uri.scheme}://{parsed_uri.netloc}"
+                        scheme = parsed_uri.scheme
+                        domain = parsed_uri.netloc
                         soup = BeautifulSoup(r.content, "html.parser")
 
                         findings = []
@@ -44,21 +68,11 @@ def scan_website(domain):
                             findings.append(str(x))
 
                         csslinks = soup.findAll('link', {'type': 'text/css'})
-                        for x in csslinks:
-                            csslink = x['href']
-
-                            # get the full url
-                            if csslink.startswith('//'):
-                                csslink = 'https:' + csslink
-                            elif csslink.startswith('/'):
-                                csslink = mydomain_with_scheme + csslink
-
-                            # complain about any links to external css
-                            if not csslink.startswith(mydomain_with_scheme + '/'):
-                                findings.append(str(x))
-                            else:
-                                # check local css files for links to external fonts
-                                findings.extend(find_links_in_css(csslink))
+                        findings = add_external_links(scheme, domain, csslinks, findings)
+                        csslinks2 = soup.findAll('link', {'rel': 'stylesheet'})
+                        findings = add_external_links(scheme, domain, csslinks2, findings)
+                        jslinks = soup.findAll('script', {'src': re.compile('.*')})
+                        findings = add_external_links(scheme, domain, jslinks, findings)
 
                         if (len(findings) > 0):
                             result = {
